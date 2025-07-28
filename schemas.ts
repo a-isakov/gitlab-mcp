@@ -1018,6 +1018,64 @@ export const ListMergeRequestsSchema = z.object({
   with_labels_details: flexibleBoolean.optional().describe("Return more details for each label"),
 }).merge(PaginationOptionsSchema);
 
+// Schema for searching merge requests globally (without project_id)
+export const SearchMergeRequestsGloballySchema = z.object({
+  state: z
+    .enum(["opened", "closed", "locked", "merged", "all"])
+    .optional()
+    .describe("Return merge requests with a specific state"),
+  order_by: z
+    .enum(["created_at", "updated_at", "priority", "label_priority", "milestone_due", "popularity"])
+    .optional()
+    .describe("Return merge requests ordered by the given field"),
+  sort: z
+    .enum(["asc", "desc"])
+    .optional()
+    .describe("Return merge requests sorted in ascending or descending order"),
+  milestone: z.string().optional().describe("Milestone title"),
+  labels: z.array(z.string()).optional().describe("Array of label names"),
+  author_id: z.coerce.string().optional().describe("Returns merge requests created by the given user ID"),
+  author_username: z.string().optional().describe("Returns merge requests created by the given username"),
+  assignee_id: z.string().optional().describe("Return issues assigned to the given user ID. user id or none or any"),
+  assignee_username: z.string().optional().describe("Returns merge requests assigned to the given username"),
+  reviewer_id: z.string().optional().describe("Returns merge requests which have the user as a reviewer. user id or none or any"),
+  reviewer_username: z.string().optional().describe("Returns merge requests which have the user as a reviewer"),
+  search: z.string().optional().describe("Search for specific terms in title and description"),
+  target_branch: z.string().optional().describe("Return merge requests targeting a specific branch"),
+  source_branch: z.string().optional().describe("Return merge requests from a specific source branch"),
+  wip: z.enum(["yes", "no"]).optional().describe("Filter merge requests against their wip status"),
+  with_labels_details: flexibleBoolean.optional().describe("Return more details for each label"),
+  scope: z.enum(["created_by_me", "assigned_to_me", "all"]).optional().describe("Return merge requests from a specific scope"),
+  created_after: z.string().optional().describe("Return merge requests created after the given time"),
+  created_before: z.string().optional().describe("Return merge requests created before the given time"),
+  updated_after: z.string().optional().describe("Return merge requests updated after the given time"),
+  updated_before: z.string().optional().describe("Return merge requests updated before the given time"),
+}).merge(PaginationOptionsSchema);
+
+// Schema for GitLab global search API
+export const GlobalSearchSchema = z.object({
+  search: z.string().describe("The search query"),
+  scope: z.enum([
+    "projects",
+    "issues", 
+    "merge_requests",
+    "commits",
+    "blobs",
+    "wiki_blobs",
+    "snippet_titles",
+    "snippet_blobs",
+    "users",
+    "milestones"
+  ]).describe("The scope to search in"),
+  project_id: z.coerce.string().optional().describe("Project ID for project-specific search"),
+  group_id: z.coerce.string().optional().describe("Group ID for group-specific search"),
+  state: z.enum(["opened", "closed", "merged"]).optional().describe("Filter by state (issues/merge_requests only)"),
+  confidential: flexibleBoolean.optional().describe("Filter by confidentiality (issues only)"),
+  order_by: z.enum(["created_at", "updated_at"]).optional().describe("Order results by"),
+  sort: z.enum(["asc", "desc"]).optional().describe("Sort direction"),
+  in: z.string().optional().describe("Modify search to also search in (title, description, etc)"),
+}).merge(PaginationOptionsSchema);
+
 export const GetIssueSchema = z.object({
   project_id: z.coerce.string().describe("Project ID or URL-encoded path"),
   issue_iid: z.coerce.string().describe("The internal ID of the project issue"),

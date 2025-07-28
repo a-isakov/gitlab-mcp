@@ -183,6 +183,8 @@ import {
   ListMergeRequestDiffsSchema,
   ListGroupIterationsSchema,
   GroupIteration,
+  SearchMergeRequestsGloballySchema,
+  GlobalSearchSchema,
 } from "./schemas.js";
 
 import { randomUUID } from "crypto";
@@ -674,6 +676,16 @@ const allTools = [
     inputSchema: zodToJsonSchema(ListMergeRequestsSchema),
   },
   {
+    name: "search_merge_requests_globally",
+    description: "Search merge requests globally across all accessible projects by title/description",
+    inputSchema: zodToJsonSchema(SearchMergeRequestsGloballySchema),
+  },
+  {
+    name: "search_globally",
+    description: "Search globally across GitLab for issues, merge requests, commits, blobs, wiki pages, and more",
+    inputSchema: zodToJsonSchema(GlobalSearchSchema),
+  },
+  {
     name: "list_milestones",
     description: "List milestones in a GitLab project with filtering options",
     inputSchema: zodToJsonSchema(ListProjectMilestonesSchema),
@@ -1141,6 +1153,86 @@ async function listMergeRequests(
   await handleGitLabError(response);
   const data = await response.json();
   return z.array(GitLabMergeRequestSchema).parse(data);
+}
+
+/**
+ * Search merge requests globally across all accessible projects
+ *
+ * @param {Object} options - Search options including search query
+ * @returns {Promise<GitLabMergeRequest[]>} List of merge requests matching search
+ */
+async function searchMergeRequestsGlobally(
+  options: Omit<z.infer<typeof SearchMergeRequestsGloballySchema>, "dummy"> = {}
+): Promise<GitLabMergeRequest[]> {
+  const url = new URL(`${GITLAB_API_URL}/merge_requests`);
+
+  // Add all query parameters
+  Object.entries(options).forEach(([key, value]) => {
+    if (value !== undefined) {
+      if (key === "labels" && Array.isArray(value)) {
+        // Handle array of labels  
+        url.searchParams.append(key, value.join(","));
+      } else {
+        url.searchParams.append(key, String(value));
+      }
+    }
+  });
+
+  const response = await fetch(url.toString(), {
+    ...DEFAULT_FETCH_CONFIG,
+  });
+
+  await handleGitLabError(response);
+  const data = await response.json();
+  return z.array(GitLabMergeRequestSchema).parse(data);
+}
+
+/**
+ * Perform global search across GitLab
+ * Search for issues, merge requests, commits, wiki pages, and more
+ *
+ * @param {Object} options - Search options
+ * @returns {Promise<any>} Search results by scope
+ */
+async function searchGlobally(
+  options: z.infer<typeof GlobalSearchSchema>
+): Promise<any> {
+  let url: URL;
+  
+  if (options.project_id) {
+    // Project-specific search
+    const projectId = decodeURIComponent(options.project_id);
+    url = new URL(`${GITLAB_API_URL}/projects/${encodeURIComponent(getEffectiveProjectId(projectId))}/search`);
+  } else if (options.group_id) {
+    // Group-specific search
+    url = new URL(`${GITLAB_API_URL}/groups/${encodeURIComponent(options.group_id)}/search`);
+  } else {
+    // Global search
+    url = new URL(`${GITLAB_API_URL}/search`);
+  }
+
+  // Add required search parameter
+  url.searchParams.append("search", options.search);
+  url.searchParams.append("scope", options.scope);
+  
+  // Add optional parameters
+  if (options.state) url.searchParams.append("state", options.state);
+  if (options.confidential !== undefined) url.searchParams.append("confidential", options.confidential.toString());
+  if (options.order_by) url.searchParams.append("order_by", options.order_by);
+  if (options.sort) url.searchParams.append("sort", options.sort);
+  if (options.page) url.searchParams.append("page", options.page.toString());
+  if (options.per_page) url.searchParams.append("per_page", options.per_page.toString());
+  if (options.in) url.searchParams.append("in", options.in);
+
+  const response = await fetch(url.toString(), {
+    ...DEFAULT_FETCH_CONFIG,
+  });
+
+  await handleGitLabError(response);
+  const data = await response.json();
+  
+  // Return raw data since different scopes return different schemas
+  return data;
 }
 
 /**
@@ -4201,6 +4293,22 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
         const mergeRequests = await listMergeRequests(args.project_id, args);
         return {
           content: [{ type: "text", text: JSON.stringify(mergeRequests, null, 2) }],
+        };
+      }
+
+      case "search_merge_requests_globally": {
+        const args = SearchMergeRequestsGloballySchema.parse(request.params.arguments);
+        const mergeRequests = await searchMergeRequestsGlobally(args);
+        return {
+          content: [{ type: "text", text: JSON.stringify(mergeRequests, null, 2) }],
+        };
+      }
+      
+      case "search_globally": {
+        const args = GlobalSearchSchema.parse(request.params.arguments);
+        const results = await searchGlobally(args);
+        return {
+          content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
         };
       }
 
